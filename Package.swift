@@ -16,6 +16,7 @@ let package = Package(
     ],
     products: [
         .executable(name: "swift-package-list", targets: ["swift-package-list"]),
+        .library(name: "SwiftPackageListBinary", targets: ["SwiftPackageListBinary"]),
         .plugin(name: "SwiftPackageListPlugin", targets: ["SwiftPackageListPlugin"]),
         .library(name: "SwiftPackageList", targets: ["SwiftPackageList"]),
         .library(name: "SwiftPackageListUI", targets: ["SwiftPackageListUI"]),
@@ -30,6 +31,11 @@ let package = Package(
                 .target(name: "SwiftPackageListCore"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
+        ),
+        .binaryTarget(
+            name: "SwiftPackageListBinary",
+            url: "https://github.com/hiryanbautista/swift-package-list/releases/download/4.10.0/SwiftPackageListBinary.artifactbundle.zip",
+            checksum: "f56345e9ed0e338719cc09aad9afeee45ea6bfa52a2cc31a5bdef447e029dcd6"
         ),
         .plugin(
             name: "SwiftPackageListPlugin",

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "artifacts": {
+    "swift-package-list": {
+      "type": "executable",
+      "version": "4.x.0",
+      "variants": [
+        {
+          "path": "swift-package-list-macos/bin/swift-package-list",
+          "supportedTriples": ["arm64-apple-macosx", "x86_64-apple-macosx"]
+        }
+      ]
+    }
+  }
+}
