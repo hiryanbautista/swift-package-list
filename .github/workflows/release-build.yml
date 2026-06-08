@@ -63,3 +63,104 @@ jobs:
           commit-message: Bump swift-package-list to ${{ env.TAG }}
           labels: release, automated pr
           delete-branch: true
+  
+  release-artifactbundle:
+    name: Release Artifact Bundle
+    runs-on: macos-latest
+    needs: release-build
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build universal binary
+        run: |
+          swift build -c release --arch arm64 --arch x86_64
+
+      - name: Create artifactbundle
+        run: |
+          mkdir -p SwiftPackageListBinary.artifactbundle/swift-package-list-macos/bin
+          cp .build/apple/Products/Release/swift-package-list \
+            SwiftPackageListBinary.artifactbundle/swift-package-list-macos/bin/swift-package-list
+
+          cat > SwiftPackageListBinary.artifactbundle/info.json << EOF
+          {
+            "schemaVersion": "1.0",
+            "artifacts": {
+              "swift-package-list": {
+                "type": "executable",
+                "version": "${TAG}",
+                "variants": [
+                  {
+                    "path": "swift-package-list-macos/bin/swift-package-list",
+                    "supportedTriples": ["arm64-apple-macosx", "x86_64-apple-macosx"]
+                  }
+                ]
+              }
+            }
+          }
+          EOF
+
+          zip -r SwiftPackageListBinary.artifactbundle.zip SwiftPackageListBinary.artifactbundle
+
+      - name: Upload artifactbundle to release
+        run: |
+          gh release upload ${{ env.TAG }} SwiftPackageListBinary.artifactbundle.zip
+
+      - name: Compute checksum
+        id: checksum
+        run: |
+          CHECKSUM=$(swift package compute-checksum SwiftPackageListBinary.artifactbundle.zip)
+          echo "value=$CHECKSUM" >> $GITHUB_OUTPUT
+
+      - name: Update Package.swift
+        run: |
+          URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/SwiftPackageListBinary.artifactbundle.zip"
+          CHECKSUM="${{ steps.checksum.outputs.value }}"
+
+          python3 - <<PYEOF
+          import re
+
+          with open("Package.swift", "r") as f:
+              content = f.read()
+
+          new_target = f"""        // BINARY_TARGET_START
+          .binaryTarget(
+              name: "SwiftPackageListBinary",
+              url: "{URL}",
+              checksum: "{CHECKSUM}"
+          ),
+          // BINARY_TARGET_END"""
+
+          updated = re.sub(
+              r'// BINARY_TARGET_START.*?// BINARY_TARGET_END',
+              new_target,
+              content,
+              flags=re.DOTALL
+          )
+
+          if updated == content:
+              insert = f"""
+          // BINARY_TARGET_START
+          .binaryTarget(
+              name: "SwiftPackageListBinary",
+              url: "{URL}",
+              checksum: "{CHECKSUM}"
+          ),
+          // BINARY_TARGET_END"""
+              updated = re.sub(r'(\s*\]\s*\)\s*$)', insert + r'\1', updated, count=1)
+
+          with open("Package.swift", "w") as f:
+              f.write(updated)
+          PYEOF
+
+      - name: Commit and push Package.swift
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Package.swift
+          git commit -m "chore: update SwiftPackageListBinary to ${TAG} [skip ci]"
+          git push origin HEAD:master
