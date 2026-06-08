@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   release-build:
@@ -45,11 +44,9 @@ jobs:
     name: Update Formula
     runs-on: ubuntu-latest
     needs: release-build
-    if: ${{ github.repository == 'FelixHerrmann/swift-package-list' }}
     env:
       TAG: ${{ github.ref_name }}
       SHA256: ${{ needs.release-build.outputs.sha }}
-      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
     steps:
       - name: Checkout FelixHerrmann/homebrew-tap
         uses: actions/checkout@v6
@@ -62,7 +59,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ env.HOMEBREW_TAP_TOKEN }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           branch: swift-package-list/${{ env.TAG }}
           title: Release swift-package-list ${{ env.TAG }}
           body: This automated PR will update swift-package-list to version ${{ env.TAG }}.
@@ -137,30 +134,24 @@ jobs:
 
           url = os.environ["URL"]
           checksum = os.environ["CHECKSUM"]
-          new_target = f"""        .binaryTarget(
-              name: "SwiftPackageListBinary",
-              url: "{url}",
-              checksum: "{checksum}"
-          ),"""
-
-          updated = re.sub(
-              r'// BINARY_TARGET_START.*?// BINARY_TARGET_END',
-              new_target,
-              content,
-              flags=re.DOTALL
+          new_target = (
+              "        .binaryTarget(\n"
+              '            name: "SwiftPackageListBinary",\n'
+              f'            url: "{url}",\n'
+              f'            checksum: "{checksum}"\n'
+              "        ),"
           )
 
-          if updated == content:
-              updated = re.sub(
-                  r'        \.binaryTarget\(\n'
-                  r'            name: "SwiftPackageListBinary",\n'
-                  r'            url: "[^"]+",\n'
-                  r'            checksum: "[^"]+"\n'
-                  r'        \),',
-                  new_target,
-                  content,
-                  count=1
-              )
+          updated = re.sub(
+              r'        \.binaryTarget\(\n'
+              r'\s+name: "SwiftPackageListBinary",\n'
+              r'\s+url: "[^"]+",\n'
+              r'\s+checksum: "[^"]+"\n'
+              r'\s+\),',
+              new_target,
+              content,
+              count=1
+          )
 
           if updated == content:
               raise RuntimeError("Could not find SwiftPackageListBinary binaryTarget in Package.swift")
