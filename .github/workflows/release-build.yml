@@ -4,6 +4,10 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   release-build:
     name: Release Build
@@ -41,9 +45,11 @@ jobs:
     name: Update Formula
     runs-on: ubuntu-latest
     needs: release-build
+    if: ${{ github.repository == 'FelixHerrmann/swift-package-list' }}
     env:
       TAG: ${{ github.ref_name }}
       SHA256: ${{ needs.release-build.outputs.sha }}
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
     steps:
       - name: Checkout FelixHerrmann/homebrew-tap
         uses: actions/checkout@v6
@@ -56,7 +62,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8
         with:
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ env.HOMEBREW_TAP_TOKEN }}
           branch: swift-package-list/${{ env.TAG }}
           title: Release swift-package-list ${{ env.TAG }}
           body: This automated PR will update swift-package-list to version ${{ env.TAG }}.
@@ -120,20 +126,22 @@ jobs:
         run: |
           URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/SwiftPackageListBinary.artifactbundle.zip"
           CHECKSUM="${{ steps.checksum.outputs.value }}"
+          export URL CHECKSUM
 
-          python3 - <<PYEOF
+          python3 - <<'PYEOF'
+          import os
           import re
 
           with open("Package.swift", "r") as f:
               content = f.read()
 
-          new_target = f"""        // BINARY_TARGET_START
-          .binaryTarget(
+          url = os.environ["URL"]
+          checksum = os.environ["CHECKSUM"]
+          new_target = f"""        .binaryTarget(
               name: "SwiftPackageListBinary",
-              url: "{URL}",
-              checksum: "{CHECKSUM}"
-          ),
-          // BINARY_TARGET_END"""
+              url: "{url}",
+              checksum: "{checksum}"
+          ),"""
 
           updated = re.sub(
               r'// BINARY_TARGET_START.*?// BINARY_TARGET_END',
@@ -143,15 +151,19 @@ jobs:
           )
 
           if updated == content:
-              insert = f"""
-          // BINARY_TARGET_START
-          .binaryTarget(
-              name: "SwiftPackageListBinary",
-              url: "{URL}",
-              checksum: "{CHECKSUM}"
-          ),
-          // BINARY_TARGET_END"""
-              updated = re.sub(r'(\s*\]\s*\)\s*$)', insert + r'\1', updated, count=1)
+              updated = re.sub(
+                  r'        \.binaryTarget\(\n'
+                  r'            name: "SwiftPackageListBinary",\n'
+                  r'            url: "[^"]+",\n'
+                  r'            checksum: "[^"]+"\n'
+                  r'        \),',
+                  new_target,
+                  content,
+                  count=1
+              )
+
+          if updated == content:
+              raise RuntimeError("Could not find SwiftPackageListBinary binaryTarget in Package.swift")
 
           with open("Package.swift", "w") as f:
               f.write(updated)
@@ -162,5 +174,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Package.swift
+          git diff --cached --quiet && exit 0
           git commit -m "chore: update SwiftPackageListBinary to ${TAG} [skip ci]"
           git push origin HEAD:master
