@@ -34,8 +34,8 @@ let package = Package(
         ),
         .binaryTarget(
             name: "SwiftPackageListBinary",
-            url: "https://github.com/hiryanbautista/swift-package-list/releases/download/4.10.4-test/SwiftPackageListBinary.artifactbundle.zip",
-            checksum: "2ae8d60e945547acbae06a4827d9e23309c54d9e2ffadd4d3257022c62a2a83a"
+            url: "https://github.com/hiryanbautista/swift-package-list/releases/download/4.10.0/SwiftPackageListBinary.artifactbundle.zip",
+            checksum: "f56345e9ed0e338719cc09aad9afeee45ea6bfa52a2cc31a5bdef447e029dcd6"
         ),
         .plugin(
             name: "SwiftPackageListPlugin",
